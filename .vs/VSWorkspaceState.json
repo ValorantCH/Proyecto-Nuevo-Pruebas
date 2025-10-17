@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\build",
+    "\\data",
+    "\\db",
+    "\\dist",
+    "\\PruebasCalidad",
+    "\\ui",
+    "\\ui\\components",
+    "\\ui\\dialogos"
+  ],
+  "SelectedNode": "\\PruebasCalidad\\pruebas_unitarias1.py",
+  "PreviewInSolutionExplorer": false
+}

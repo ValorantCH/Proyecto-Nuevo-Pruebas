@@ -1,0 +1,134 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "X:\\Repasos UNI\\ventasGit\\ventas\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\PruebasCalidad\\pruebas_unitarias1.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:PruebasCalidad\\pruebas_unitarias1.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\ui\\transacciones.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ui\\transacciones.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\ui\\movimientos.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ui\\movimientos.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\ui\\punto_venta.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ui\\punto_venta.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\ui\\facturas.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ui\\facturas.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\ui\\clientes.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:ui\\clientes.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Repasos UNI\\ventasGit\\ventas\\main.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:main.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "punto_venta.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\punto_venta.py",
+              "RelativeDocumentMoniker": "ui\\punto_venta.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\punto_venta.py",
+              "RelativeToolTip": "ui\\punto_venta.py",
+              "ViewState": "AgIAAI8BAAAAAAAAAAAAABkAAABWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:47:59.778Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "transacciones.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\transacciones.py",
+              "RelativeDocumentMoniker": "ui\\transacciones.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\transacciones.py",
+              "RelativeToolTip": "ui\\transacciones.py",
+              "ViewState": "AgIAAEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:48:22.529Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "pruebas_unitarias1.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\PruebasCalidad\\pruebas_unitarias1.py",
+              "RelativeDocumentMoniker": "PruebasCalidad\\pruebas_unitarias1.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\PruebasCalidad\\pruebas_unitarias1.py",
+              "RelativeToolTip": "PruebasCalidad\\pruebas_unitarias1.py",
+              "ViewState": "AgIAADAAAAAAAAAAAAAgwGQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T02:00:31.229Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "facturas.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\facturas.py",
+              "RelativeDocumentMoniker": "ui\\facturas.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\facturas.py",
+              "RelativeToolTip": "ui\\facturas.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:47:40.414Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "movimientos.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\movimientos.py",
+              "RelativeDocumentMoniker": "ui\\movimientos.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\movimientos.py",
+              "RelativeToolTip": "ui\\movimientos.py",
+              "ViewState": "AgIAAKIAAAAAAAAAAAAAALMAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:30:20.96Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "clientes.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\clientes.py",
+              "RelativeDocumentMoniker": "ui\\clientes.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\ui\\clientes.py",
+              "RelativeToolTip": "ui\\clientes.py",
+              "ViewState": "AgIAAGkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:30:11.956Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "main.py",
+              "DocumentMoniker": "X:\\Repasos UNI\\ventasGit\\ventas\\main.py",
+              "RelativeDocumentMoniker": "main.py",
+              "ToolTip": "X:\\Repasos UNI\\ventasGit\\ventas\\main.py",
+              "RelativeToolTip": "main.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-16T01:20:19.916Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
