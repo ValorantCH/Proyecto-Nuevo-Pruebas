@@ -79,6 +79,9 @@ def test_cambiar_estado_cliente_cuando_no_se_encuentra_en_db(mock_messagebox, mo
     # La DB devuelve una lista vacía, indicando que no encontró al cliente.
     mock_obtener_datos.return_value = []
 
+    # También es necesario añadir esta línea para que el flujo continúe
+    #mock_messagebox.askyesno.return_value = True
+
     # 2. Acción (Act)
     # Ahora esta llamada no lanzará un KeyError.
     pantalla_clientes._cambiar_estado_cliente()
