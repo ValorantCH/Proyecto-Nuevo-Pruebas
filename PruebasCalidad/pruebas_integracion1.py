@@ -4,7 +4,7 @@ from unittest.mock import patch, Mock, ANY
 
 # Importamos las clases de los diálogos que vamos a probar
 from ui.dialogos.dialogo_producto import DialogoProducto
-from ui.dialogos.dialogo_movimiento import DialogoMovimiento
+from ui.dialogos.dialogo_movimientos import DialogoMovimiento
 
 class TestIntegracionDialogos(unittest.TestCase):
     """
