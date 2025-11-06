@@ -2,6 +2,7 @@ import sys
 import os
 import tkinter as tk
 import unittest
+import sqlite3  # <-- ESTA ES LA LÍNEA QUE FALTABA Y CORRIGE EL ERROR
 from unittest.mock import patch, Mock
 
 # --- INICIO DE CONFIGURACIÓN DEL PATH ---
@@ -11,7 +12,6 @@ sys.path.insert(0, project_root)
 # --- FIN DE CONFIGURACIÓN DEL PATH ---
 
 # Ahora las importaciones desde tu proyecto funcionarán
-# (Asegúrate de que la estructura de carpetas sea correcta)
 from ui.dialogos.dialogo_producto import DialogoProducto
 from ui.dialogos.dialogo_movimientos import DialogoMovimiento
 
@@ -62,7 +62,7 @@ class TestIntegracionDialogos(unittest.TestCase):
 
     def setUp(self):
         """Configura una BD en memoria y el esquema necesario antes de cada prueba."""
-        self.conn = sqlite3.connect(':memory:')
+        self.conn = sqlite3.connect(':memory:') # Esta línea ahora funciona gracias al import
         configurar_conexion_db(self.conn)
         cursor = self.conn.cursor()
         
@@ -106,12 +106,10 @@ class TestIntegracionDialogos(unittest.TestCase):
         Prueba el flujo exitoso de creación de un producto, verificando que
         los datos se inserten correctamente en la base de datos.
         """
-        # Arrange: Insertar datos preliminares (categoría, proveedor) en la BD de prueba
         ejecutar_query("INSERT INTO Categorias (id_categoria, nombre) VALUES (?, ?)", (1, 'Tecnología'))
         ejecutar_query("INSERT INTO Proveedores (id_proveedor, nombre) VALUES (?, ?)", (1, 'TechCorp'))
         mock_callback = Mock()
 
-        # Act: Simular la interacción del usuario con el diálogo
         dialogo = DialogoProducto(self.root, mock_callback)
         dialogo.entries['nombre'].insert(0, 'Teclado Mecánico RGB')
         dialogo.entries['precio_venta'].insert(0, '120.50')
@@ -123,7 +121,6 @@ class TestIntegracionDialogos(unittest.TestCase):
         
         dialogo._validar_formulario()
 
-        # Assert: Consultar la BD para verificar que el producto fue creado
         producto_creado = obtener_datos("SELECT nombre, sku, stock_actual FROM Productos WHERE sku = ?", ('TEC-RGB-001',))
         self.assertEqual(len(producto_creado), 1)
         self.assertEqual(producto_creado[0][0], 'Teclado Mecánico RGB')
@@ -140,11 +137,9 @@ class TestIntegracionDialogos(unittest.TestCase):
         Prueba que la integración con la BD previene la creación de un producto
         con un SKU que ya existe.
         """
-        # Arrange: Insertar un producto en la BD con un SKU específico
         ejecutar_query("INSERT INTO Productos (nombre, sku) VALUES (?, ?)", ('Producto Existente', 'SKU-EXISTE'))
         mock_callback = Mock()
         
-        # Act: Intentar crear otro producto con el mismo SKU
         dialogo = DialogoProducto(self.root, mock_callback)
         dialogo.entries['nombre'].insert(0, 'Producto Nuevo Falso')
         dialogo.entries['precio_venta'].insert(0, '100')
@@ -154,7 +149,6 @@ class TestIntegracionDialogos(unittest.TestCase):
         
         dialogo._validar_formulario()
 
-        # Assert: Verificar que no se insertó un segundo producto
         productos = obtener_datos("SELECT COUNT(*) FROM Productos")
         self.assertEqual(productos[0][0], 1)
         
@@ -169,20 +163,17 @@ class TestIntegracionDialogos(unittest.TestCase):
         Prueba que no se permite un movimiento de salida si la cantidad solicitada
         supera el stock actual registrado en la base de datos.
         """
-        # Arrange: Insertar un producto con stock limitado
         prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('Monitor 4K', 5))
         mock_callback = Mock()
 
-        # Act: Intentar registrar una salida mayor al stock disponible
         dialogo = DialogoMovimiento(self.root, [(prod_id, 'Monitor 4K', 5)], mock_callback)
         dialogo.tipo_movimiento.set('salida')
         dialogo.lista_productos.insert(tk.END, f"{prod_id} - Monitor 4K")
         dialogo.lista_productos.selection_set(0)
-        dialogo.cantidad_movimiento.insert(0, '10') # Intentar sacar 10 de 5
+        dialogo.cantidad_movimiento.insert(0, '10')
         
         dialogo._validar_movimiento()
 
-        # Assert: Verificar que el stock en la BD no cambió y se mostró un error
         stock_final = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
         self.assertEqual(stock_final[0][0], 5)
         mock_messagebox.showerror.assert_called_with(
@@ -198,11 +189,9 @@ class TestIntegracionDialogos(unittest.TestCase):
         Prueba el flujo exitoso de una entrada de inventario, verificando que
         el stock del producto se actualice y se cree un registro del movimiento.
         """
-        # Arrange: Insertar producto con stock inicial
         prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('SSD 1TB', 20))
         mock_callback = Mock()
 
-        # Act: Registrar una entrada de 15 unidades
         dialogo = DialogoMovimiento(self.root, [(prod_id, 'SSD 1TB', 20)], mock_callback)
         dialogo.tipo_movimiento.set('entrada')
         dialogo.lista_productos.insert(tk.END, f"{prod_id} - SSD 1TB")
@@ -211,9 +200,8 @@ class TestIntegracionDialogos(unittest.TestCase):
         
         dialogo._validar_movimiento()
         
-        # Assert: Verificar el nuevo stock y el registro del movimiento en la BD
         stock_actualizado = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
-        self.assertEqual(stock_actualizado[0][0], 35) # 20 + 15 = 35
+        self.assertEqual(stock_actualizado[0][0], 35)
 
         movimiento_registrado = obtener_datos("SELECT tipo, cantidad, id_producto FROM Movimientos_inventario")
         self.assertEqual(len(movimiento_registrado), 1)
@@ -230,11 +218,9 @@ class TestIntegracionDialogos(unittest.TestCase):
         Prueba el flujo exitoso de una salida de inventario, verificando que
         el stock se descuente correctamente y se registre el movimiento.
         """
-        # Arrange: Insertar producto con stock suficiente
         prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('Memoria RAM 16GB', 100))
         mock_callback = Mock()
 
-        # Act: Registrar una salida de 20 unidades
         dialogo = DialogoMovimiento(self.root, [(prod_id, 'Memoria RAM 16GB', 100)], mock_callback)
         dialogo.tipo_movimiento.set('salida')
         dialogo.lista_productos.insert(tk.END, f"{prod_id} - Memoria RAM 16GB")
@@ -244,9 +230,8 @@ class TestIntegracionDialogos(unittest.TestCase):
         
         dialogo._validar_movimiento()
 
-        # Assert: Verificar el stock descontado y el registro del movimiento en la BD
         stock_actualizado = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
-        self.assertEqual(stock_actualizado[0][0], 80) # 100 - 20 = 80
+        self.assertEqual(stock_actualizado[0][0], 80)
 
         movimiento_registrado = obtener_datos("SELECT tipo, cantidad, referencia FROM Movimientos_inventario")
         self.assertEqual(len(movimiento_registrado), 1)
