@@ -17,14 +17,14 @@ WINDOW_TITLE = "Gestor de Ventas"
 NUMBER_OF_CLICKS = 30
 
 # El tiempo de espera (en un rango aleatorio) entre cada clic
-DELAY_BETWEEN_CLICKS = (0.5, 1.5) # Espera entre 0.5 y 1.5 segundos
+DELAY_BETWEEN_CLICKS = (0.1, 0.2) # Espera entre 0.5 y 1.5 segundos
 
 # --- RESTRICCIÓN DEL ÁREA DE CLICS (PADDING EN PÍXELES) ---
 # Define un margen interno para evitar clics en los bordes o en el encabezado.
 # Para permitir clics en TODA la ventana, pon todos los valores a 0.
 CLICK_AREA_PADDING = {
     "top": 100,   # No hacer clic en los primeros 100 píxeles (para evitar el header)
-    "bottom": 20, # No hacer clic en los últimos 20 píxeles (barra de estado, etc.)
+    "bottom": 400, # No hacer clic en los últimos 20 píxeles (barra de estado, etc.)
     "left": 20,
     "right": 20
 }
