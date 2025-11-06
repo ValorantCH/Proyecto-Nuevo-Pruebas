@@ -1,27 +1,21 @@
-import unittest
+import sys
+import os
 import tkinter as tk
-import sqlite3
-from datetime import datetime
-from unittest.mock import patch
+import unittest
+from unittest.mock import patch, Mock
 
-# --- Suposiciones sobre la estructura de tu proyecto ---
-# Para que estas importaciones funcionen, este archivo de prueba
-# debe estar en un lugar desde donde Python pueda encontrar los módulos 'ui' y 'db'.
-# Por ejemplo:
-# tu_proyecto/
-# ├── ui/
-# │   └── ... (aquí tus clases de UI como clientes.py)
-# ├── db/
-# │   └── db.py
-# └── pruebas/
-#     └── pruebas_integracion.py
+# --- INICIO DE CONFIGURACIÓN DEL PATH ---
+# Añade la carpeta raíz del proyecto al path de Python para encontrar los módulos.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+# --- FIN DE CONFIGURACIÓN DEL PATH ---
 
-from clientes import PantallaClientes
-from transacciones import PantallaTransacciones
+# Ahora las importaciones desde tu proyecto funcionarán
+# (Asegúrate de que la estructura de carpetas sea correcta)
+from ui.dialogos.dialogo_producto import DialogoProducto
+from ui.dialogos.dialogo_movimientos import DialogoMovimiento
 
 # --- Simulación del módulo de base de datos para las pruebas ---
-# Estas funciones se conectarán a nuestra base de datos de prueba en memoria.
-
 db_connection = None
 
 def configurar_conexion_db(conn):
@@ -30,7 +24,7 @@ def configurar_conexion_db(conn):
     db_connection = conn
 
 def ejecutar_query(query, parametros=()):
-    """Ejecuta una consulta (INSERT, UPDATE, DELETE) en la BD de prueba."""
+    """Ejecuta una consulta (INSERT, UPDATE) en la BD de prueba."""
     cursor = db_connection.cursor()
     cursor.execute(query, parametros)
     db_connection.commit()
@@ -42,192 +36,226 @@ def obtener_datos(query, parametros=()):
     cursor.execute(query, parametros)
     return cursor.fetchall()
 
-# --- Clase de Pruebas de Integración ---
+def ejecutar_transaccion(queries):
+    """Ejecuta una lista de consultas como una transacción en la BD de prueba."""
+    cursor = db_connection.cursor()
+    try:
+        for query, params in queries:
+            cursor.execute(query, params)
+        db_connection.commit()
+    except Exception as e:
+        db_connection.rollback()
+        raise e
 
-class TestIntegracion(unittest.TestCase):
+# --- Clase de Pruebas de Integración para Diálogos ---
+
+class TestIntegracionDialogos(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Se ejecuta una vez al inicio de todas las pruebas."""
         cls.root = tk.Tk()
-        cls.root.withdraw() # Ocultar la ventana principal de Tkinter
+        cls.root.withdraw()
 
     @classmethod
     def tearDownClass(cls):
-        """Se ejecuta una vez al final de todas las pruebas."""
         cls.root.destroy()
 
     def setUp(self):
-        """
-        Configura un entorno limpio para CADA prueba: una base de datos en memoria,
-        el esquema de tablas y las instancias de las pantallas.
-        """
-        # 1. Crear una base de datos SQLite en memoria
+        """Configura una BD en memoria y el esquema necesario antes de cada prueba."""
         self.conn = sqlite3.connect(':memory:')
         configurar_conexion_db(self.conn)
-
-        # 2. Crear las tablas necesarias
         cursor = self.conn.cursor()
+        
+        # Crear todas las tablas necesarias para los diálogos
         cursor.execute("""
-            CREATE TABLE Clientes (
-                id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombres TEXT, apellido_p TEXT, apellido_m TEXT, tipo_persona TEXT,
-                correo TEXT, telefono TEXT, rfc TEXT, fecha_registro TEXT, estado INTEGER
-            )
-        """)
+            CREATE TABLE Productos (
+                id_producto INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, descripcion TEXT,
+                precio_venta REAL, costo REAL, sku TEXT UNIQUE, id_categoria INTEGER,
+                id_proveedor INTEGER, stock_actual INTEGER, stock_minimo INTEGER, stock_maximo INTEGER,
+                estado INTEGER DEFAULT 1
+            )""")
+        cursor.execute("CREATE TABLE Categorias (id_categoria INTEGER PRIMARY KEY, nombre TEXT)")
+        cursor.execute("CREATE TABLE Proveedores (id_proveedor INTEGER PRIMARY KEY, nombre TEXT)")
         cursor.execute("""
-             CREATE TABLE Medios_pago (
-                id_medio_pago INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE Transacciones (
-                id_transaccion INTEGER PRIMARY KEY AUTOINCREMENT,
-                fecha TEXT, tipo TEXT, id_cliente INTEGER, id_medio_pago INTEGER,
-                subtotal REAL, impuestos REAL, total REAL, estado TEXT,
-                FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente),
-                FOREIGN KEY (id_medio_pago) REFERENCES Medios_pago(id_medio_pago)
-            )
-        """)
+            CREATE TABLE Movimientos_inventario (
+                id_movimiento INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, cantidad INTEGER,
+                fecha DATETIME, id_producto INTEGER, referencia TEXT
+            )""")
         self.conn.commit()
 
-        # 3. Inyectar nuestras funciones de BD simuladas en los módulos de la UI
-        # Esto asegura que las clases de pantalla usen nuestra BD de prueba.
-        # (Esto funciona si tus clases importan directamente las funciones)
-        PantallaClientes.__module__.__globals__['obtener_datos'] = obtener_datos
-        PantallaClientes.__module__.__globals__['ejecutar_query'] = ejecutar_query
-        PantallaTransacciones.__module__.__globals__['obtener_datos'] = obtener_datos
-
-        # 4. Crear instancias de las pantallas
-        self.pantalla_clientes = PantallaClientes(self.root)
-        self.pantalla_transacciones = PantallaTransacciones(self.root)
+        # Inyectar las funciones de BD reales en los módulos de los diálogos
+        dialogo_producto_module = sys.modules['ui.dialogos.dialogo_producto']
+        dialogo_producto_module.obtener_datos = obtener_datos
+        dialogo_producto_module.ejecutar_query = ejecutar_query
+        
+        dialogo_movimientos_module = sys.modules['ui.dialogos.dialogo_movimientos']
+        dialogo_movimientos_module.obtener_datos = obtener_datos
+        dialogo_movimientos_module.ejecutar_transaccion = ejecutar_transaccion
 
     def tearDown(self):
-        """Limpia el entorno después de CADA prueba."""
         self.conn.close()
 
     # --- 5 FUNCIONES DE PRUEBA DE INTEGRACIÓN ---
 
-    def test_1_cargar_transacciones_con_joins(self):
+    @patch('ui.dialogos.dialogo_producto.DialogoCategoria')
+    @patch('ui.dialogos.dialogo_producto.DialogoProveedor')
+    @patch('ui.dialogos.dialogo_producto.messagebox')
+    def test_1_crear_producto_exitoso(self, mock_messagebox, mock_dlg_prov, mock_dlg_cat):
         """
         # Responsable: Tecsi Huallpa Luis Alberto
-        Prueba la consulta de carga de transacciones, verificando que los
-        JOIN con Clientes y Medios_pago funcionan correctamente para traer
-        los nombres en lugar de solo los IDs.
+        Prueba el flujo exitoso de creación de un producto, verificando que
+        los datos se inserten correctamente en la base de datos.
         """
-        # Arrange: Insertar datos relacionados en diferentes tablas
-        cliente_id = ejecutar_query("INSERT INTO Clientes (nombres, apellido_p) VALUES (?, ?)", ('Ana', 'García'))
-        medio_pago_id = ejecutar_query("INSERT INTO Medios_pago (nombre) VALUES (?)", ('Tarjeta de Crédito',))
-        
-        fecha_transaccion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        ejecutar_query(
-            """INSERT INTO Transacciones 
-               (fecha, tipo, id_cliente, id_medio_pago, subtotal, impuestos, total, estado) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (fecha_transaccion, 'venta', cliente_id, medio_pago_id, 129.31, 20.69, 150.0, 'completada')
-        )
-        
-        # Act: Cargar los datos en la pantalla de transacciones
-        self.pantalla_transacciones._cargar_datos()
-        
-        # Assert: Verificar que los datos cargados contienen la información de las tablas unidas
-        self.assertEqual(len(self.pantalla_transacciones.datos), 1)
-        transaccion_cargada = self.pantalla_transacciones.datos[0]
-        
-        self.assertEqual(transaccion_cargada[3], 'Ana García') # Índice 3: 'cliente'
-        self.assertEqual(transaccion_cargada[4], 'Tarjeta de Crédito') # Índice 4: 'medio_pago'
-        self.assertEqual(transaccion_cargada[7], 150.0) # Índice 7: 'total'
+        # Arrange: Insertar datos preliminares (categoría, proveedor) en la BD de prueba
+        ejecutar_query("INSERT INTO Categorias (id_categoria, nombre) VALUES (?, ?)", (1, 'Tecnología'))
+        ejecutar_query("INSERT INTO Proveedores (id_proveedor, nombre) VALUES (?, ?)", (1, 'TechCorp'))
+        mock_callback = Mock()
 
-    def test_2_filtrar_clientes_por_estado(self):
+        # Act: Simular la interacción del usuario con el diálogo
+        dialogo = DialogoProducto(self.root, mock_callback)
+        dialogo.entries['nombre'].insert(0, 'Teclado Mecánico RGB')
+        dialogo.entries['precio_venta'].insert(0, '120.50')
+        dialogo.entries['costo'].insert(0, '75.00')
+        dialogo.entries['stock_actual'].insert(0, '50')
+        dialogo.entries['sku'].insert(0, 'TEC-RGB-001')
+        dialogo.combo_categoria.set('1 - Tecnología')
+        dialogo.combo_proveedor.set('1 - TechCorp')
+        
+        dialogo._validar_formulario()
+
+        # Assert: Consultar la BD para verificar que el producto fue creado
+        producto_creado = obtener_datos("SELECT nombre, sku, stock_actual FROM Productos WHERE sku = ?", ('TEC-RGB-001',))
+        self.assertEqual(len(producto_creado), 1)
+        self.assertEqual(producto_creado[0][0], 'Teclado Mecánico RGB')
+        self.assertEqual(producto_creado[0][2], 50)
+        
+        mock_messagebox.showinfo.assert_called_with("Éxito", "Producto creado exitosamente")
+        mock_callback.assert_called_once()
+        dialogo.dialogo.destroy()
+
+    @patch('ui.dialogos.dialogo_producto.messagebox')
+    def test_2_crear_producto_falla_sku_duplicado(self, mock_messagebox):
         """
         # Responsable: Paucar Quejia Rye Gabriel Gregory
-        Prueba la integración del filtro de estado en PantallaClientes.
-        Verifica que al seleccionar un estado, la consulta SQL se construye
-        correctamente y devuelve solo los registros correspondientes.
+        Prueba que la integración con la BD previene la creación de un producto
+        con un SKU que ya existe.
         """
-        # Arrange: Insertar dos clientes con estados diferentes
-        ejecutar_query("INSERT INTO Clientes (nombres, estado) VALUES (?, ?)", ('Cliente Activo', 1))
-        ejecutar_query("INSERT INTO Clientes (nombres, estado) VALUES (?, ?)", ('Cliente Inactivo', 0))
+        # Arrange: Insertar un producto en la BD con un SKU específico
+        ejecutar_query("INSERT INTO Productos (nombre, sku) VALUES (?, ?)", ('Producto Existente', 'SKU-EXISTE'))
+        mock_callback = Mock()
+        
+        # Act: Intentar crear otro producto con el mismo SKU
+        dialogo = DialogoProducto(self.root, mock_callback)
+        dialogo.entries['nombre'].insert(0, 'Producto Nuevo Falso')
+        dialogo.entries['precio_venta'].insert(0, '100')
+        dialogo.entries['costo'].insert(0, '50')
+        dialogo.entries['stock_actual'].insert(0, '10')
+        dialogo.entries['sku'].insert(0, 'SKU-EXISTE')
+        
+        dialogo._validar_formulario()
 
-        # Act: Simular la selección del filtro "Inactivo" en el ComboBox de la UI
-        self.pantalla_clientes.combo_estado.set('Inactivo')
-        self.pantalla_clientes._aplicar_filtros() # Este método llama a _cargar_datos
+        # Assert: Verificar que no se insertó un segundo producto
+        productos = obtener_datos("SELECT COUNT(*) FROM Productos")
+        self.assertEqual(productos[0][0], 1)
+        
+        self.assertEqual(dialogo.errores['sku'].cget("text"), "Este sku ya existe")
+        mock_callback.assert_not_called()
+        dialogo.dialogo.destroy()
 
-        # Assert: Verificar que solo se cargó el cliente inactivo
-        self.assertEqual(len(self.pantalla_clientes.datos), 1)
-        cliente_filtrado = self.pantalla_clientes.datos[0]
-        self.assertEqual(cliente_filtrado[1], 'Cliente Inactivo  ') # nombre_completo
-        self.assertEqual(cliente_filtrado[7], 0) # estado
-
-    def test_3_busqueda_cliente_por_nombre(self):
+    @patch('ui.dialogos.dialogo_movimientos.messagebox')
+    def test_3_registrar_salida_stock_insuficiente(self, mock_messagebox):
         """
         # Responsable: Ccahua Huamani Salome Celeste
-        Prueba la integración de la barra de búsqueda de clientes.
-        Verifica que la cláusula WHERE con LIKE se construye y ejecuta correctamente
-        basado en la entrada de texto del usuario.
+        Prueba que no se permite un movimiento de salida si la cantidad solicitada
+        supera el stock actual registrado en la base de datos.
         """
-        # Arrange: Insertar varios clientes
-        ejecutar_query("INSERT INTO Clientes (nombres, apellido_p) VALUES (?, ?)", ('Ana', 'García'))
-        ejecutar_query("INSERT INTO Clientes (nombres, apellido_p) VALUES (?, ?)", ('Carlos', 'Mendoza'))
-        ejecutar_query("INSERT INTO Clientes (nombres, apellido_p) VALUES (?, ?)", ('Carla', 'Jiménez'))
+        # Arrange: Insertar un producto con stock limitado
+        prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('Monitor 4K', 5))
+        mock_callback = Mock()
 
-        # Act: Simular la escritura de "Carl" en la barra de búsqueda de la UI
-        self.pantalla_clientes.entrada_busqueda.insert(0, "Carl")
-        self.pantalla_clientes._aplicar_filtros()
+        # Act: Intentar registrar una salida mayor al stock disponible
+        dialogo = DialogoMovimiento(self.root, [(prod_id, 'Monitor 4K', 5)], mock_callback)
+        dialogo.tipo_movimiento.set('salida')
+        dialogo.lista_productos.insert(tk.END, f"{prod_id} - Monitor 4K")
+        dialogo.lista_productos.selection_set(0)
+        dialogo.cantidad_movimiento.insert(0, '10') # Intentar sacar 10 de 5
+        
+        dialogo._validar_movimiento()
 
-        # Assert: Verificar que se cargaron los dos clientes cuyo nombre empieza con "Carl"
-        self.assertEqual(len(self.pantalla_clientes.datos), 2)
-        nombres_encontrados = {cliente[1].strip() for cliente in self.pantalla_clientes.datos}
-        self.assertEqual(nombres_encontrados, {'Carlos Mendoza', 'Carla Jiménez'})
+        # Assert: Verificar que el stock en la BD no cambió y se mostró un error
+        stock_final = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
+        self.assertEqual(stock_final[0][0], 5)
+        mock_messagebox.showerror.assert_called_with(
+            "Error de validación", "Stock insuficiente. Disponible: 5\nSolicitado: 10", parent=dialogo.dialogo
+        )
+        mock_callback.assert_not_called()
+        dialogo.dialogo.destroy()
 
-    def test_4_cambiar_estado_cliente(self):
+    @patch('ui.dialogos.dialogo_movimientos.messagebox')
+    def test_4_registrar_entrada_exitosa(self, mock_messagebox):
         """
         # Responsable: Roque Aysa Gabriel Saul
-        Prueba el flujo completo de modificar datos: seleccionar un cliente,
-        ejecutar la acción para cambiar su estado y verificar que el cambio
-        se persistió correctamente en la base de datos.
+        Prueba el flujo exitoso de una entrada de inventario, verificando que
+        el stock del producto se actualice y se cree un registro del movimiento.
         """
-        # Arrange: Crear un cliente activo y "seleccionarlo" en la tabla
-        cliente_id = ejecutar_query("INSERT INTO Clientes (nombres, estado) VALUES (?, ?)", ('Cliente a Cambiar', 1))
-        self.pantalla_clientes._cargar_datos()
-        
-        # Simular la selección del item en el Treeview
-        item_id = self.pantalla_clientes.tabla.get_children()[0]
-        self.pantalla_clientes.tabla.focus(item_id)
-        self.pantalla_clientes.tabla.selection_set(item_id)
+        # Arrange: Insertar producto con stock inicial
+        prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('SSD 1TB', 20))
+        mock_callback = Mock()
 
-        # Simular que el usuario hace clic en "Sí" en el cuadro de diálogo de confirmación
-        with patch('tkinter.messagebox.askyesno', return_value=True):
-            # Act: Llamar al método que cambia el estado
-            self.pantalla_clientes._cambiar_estado_cliente()
+        # Act: Registrar una entrada de 15 unidades
+        dialogo = DialogoMovimiento(self.root, [(prod_id, 'SSD 1TB', 20)], mock_callback)
+        dialogo.tipo_movimiento.set('entrada')
+        dialogo.lista_productos.insert(tk.END, f"{prod_id} - SSD 1TB")
+        dialogo.lista_productos.selection_set(0)
+        dialogo.cantidad_movimiento.insert(0, '15')
         
-        # Assert: Verificar directamente en la BD que el estado cambió a 0 (Inactivo)
-        resultado = obtener_datos("SELECT estado FROM Clientes WHERE id_cliente = ?", (cliente_id,))
-        self.assertEqual(resultado[0][0], 0)
+        dialogo._validar_movimiento()
+        
+        # Assert: Verificar el nuevo stock y el registro del movimiento en la BD
+        stock_actualizado = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
+        self.assertEqual(stock_actualizado[0][0], 35) # 20 + 15 = 35
 
-    def test_5_cargar_transaccion_sin_cliente_asignado(self):
+        movimiento_registrado = obtener_datos("SELECT tipo, cantidad, id_producto FROM Movimientos_inventario")
+        self.assertEqual(len(movimiento_registrado), 1)
+        self.assertEqual(movimiento_registrado[0][0], 'entrada')
+        self.assertEqual(movimiento_registrado[0][1], 15)
+        
+        mock_callback.assert_called_once()
+        dialogo.dialogo.destroy()
+
+    @patch('ui.dialogos.dialogo_movimientos.messagebox')
+    def test_5_registrar_salida_exitosa(self, mock_messagebox):
         """
         # Responsable: Rivera Cusihuaman Jorcaef Vicente
-        Prueba un caso especial importante: cómo la aplicación maneja
-        transacciones donde el 'id_cliente' es NULL. Verifica que la lógica
-        CASE en la consulta SQL funciona como se espera, mostrando 'Sistema'.
+        Prueba el flujo exitoso de una salida de inventario, verificando que
+        el stock se descuente correctamente y se registre el movimiento.
         """
-        # Arrange: Insertar una transacción con id_cliente como NULL
-        ejecutar_query("""
-            INSERT INTO Transacciones (fecha, tipo, id_cliente, total, estado)
-            VALUES (?, ?, ?, ?, ?)
-            """, (datetime.now(), 'ajuste', None, 50.0, 'completada'))
+        # Arrange: Insertar producto con stock suficiente
+        prod_id = ejecutar_query("INSERT INTO Productos (nombre, stock_actual) VALUES (?, ?)", ('Memoria RAM 16GB', 100))
+        mock_callback = Mock()
 
-        # Act: Cargar los datos en la pantalla de transacciones
-        self.pantalla_transacciones._cargar_datos()
-
-        # Assert: Verificar que se cargó la transacción y el campo cliente es 'Sistema'
-        self.assertEqual(len(self.pantalla_transacciones.datos), 1)
-        transaccion_cargada = self.pantalla_transacciones.datos[0]
+        # Act: Registrar una salida de 20 unidades
+        dialogo = DialogoMovimiento(self.root, [(prod_id, 'Memoria RAM 16GB', 100)], mock_callback)
+        dialogo.tipo_movimiento.set('salida')
+        dialogo.lista_productos.insert(tk.END, f"{prod_id} - Memoria RAM 16GB")
+        dialogo.lista_productos.selection_set(0)
+        dialogo.cantidad_movimiento.insert(0, '20')
+        dialogo.referencia_movimiento.insert(0, 'Venta a cliente X')
         
-        # El índice 3 corresponde a la columna 'cliente' en la consulta
-        self.assertEqual(transaccion_cargada[3], 'Sistema')
+        dialogo._validar_movimiento()
+
+        # Assert: Verificar el stock descontado y el registro del movimiento en la BD
+        stock_actualizado = obtener_datos("SELECT stock_actual FROM Productos WHERE id_producto = ?", (prod_id,))
+        self.assertEqual(stock_actualizado[0][0], 80) # 100 - 20 = 80
+
+        movimiento_registrado = obtener_datos("SELECT tipo, cantidad, referencia FROM Movimientos_inventario")
+        self.assertEqual(len(movimiento_registrado), 1)
+        self.assertEqual(movimiento_registrado[0][0], 'salida')
+        self.assertEqual(movimiento_registrado[0][1], 20)
+        self.assertEqual(movimiento_registrado[0][2], 'Venta a cliente X')
+        
+        mock_callback.assert_called_once()
+        dialogo.dialogo.destroy()
 
 if __name__ == '__main__':
-    # Esto permite ejecutar el archivo de pruebas directamente
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
