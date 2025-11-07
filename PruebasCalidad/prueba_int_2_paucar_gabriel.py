@@ -15,6 +15,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from ui.dialogos.dialogo_producto import DialogoProducto
+from ui.dialogos.dialogo_movimientos import DialogoMovimiento
 
 # --- Helpers de Base de Datos (replicados para independencia) ---
 db_connection = None
