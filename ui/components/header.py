@@ -9,29 +9,22 @@ class Header(ttk.Frame):
         self.on_nav_click = on_nav_click
         self.on_logout = on_logout
         self.usuario = usuario
-        self.permisos = permisos or [] # Lista de permisos
+        self.permisos = permisos or []
         
         self.columnconfigure(1, weight=1)
 
-        # --- Lado Izquierdo: Logo ---
+        # Logo
         logo_frame = ttk.Frame(self, style="Header.TFrame")
         logo_frame.pack(side="left", padx=20)
-        
-        ttk.Label(
-            logo_frame,
-            text="🛒 Ventas",
-            style="Header.TLabel",
-            font=("Helvetica", 16, "bold"),
-            foreground="#ECEFF4"
-        ).pack(side="left")
+        ttk.Label(logo_frame, text="🛒 Ventas", style="Header.TLabel", font=("Helvetica", 16, "bold"), foreground="#ECEFF4").pack(side="left")
 
-        # --- Centro: Navegación ---
+        # Navegación
         nav_frame = ttk.Frame(self, style="Header.TFrame")
         nav_frame.pack(side="left", padx=40)
         
-        # Definición completa de botones
         nav_buttons = [
-            ("Inicio", "inicio"), # Inicio siempre disponible
+            ("Inicio", "inicio"),
+            ("Dashboard", "dashboard"), # <--- NUEVO
             ("Ventas", "ventas"),
             ("Inventario", "inventario"),
             ("Clientes", "clientes"),
@@ -40,8 +33,6 @@ class Header(ttk.Frame):
         ]
         
         for text, screen_key in nav_buttons:
-            # CONDICIÓN DE FILTRADO:
-            # Si es "inicio" O la clave está en la lista de permisos, se crea el botón.
             if screen_key == "inicio" or screen_key in self.permisos:
                 btn = ttk.Button(
                     nav_frame,
@@ -51,30 +42,13 @@ class Header(ttk.Frame):
                 )
                 btn.pack(side="left", padx=5)
 
-        # --- Lado Derecho: Info Usuario y Logout ---
+        # Info Usuario
         user_frame = ttk.Frame(self, style="Header.TFrame")
         user_frame.pack(side="right", padx=20)
 
-        ttk.Label(
-            user_frame,
-            text=f"👤 {self.usuario}",
-            font=("Helvetica", 10),
-            foreground="#88C0D0",
-            background="#2E3440"
-        ).pack(side="left", padx=(0, 15))
-
-        btn_logout = tk.Button(
-            user_frame,
-            text="Salir ➔",
-            font=("Helvetica", 9, "bold"),
-            bg="#BF616A",
-            fg="white",
-            bd=0,
-            padx=10,
-            pady=2,
-            cursor="hand2",
-            activebackground="#D08770",
-            activeforeground="white",
+        ttk.Label(user_frame, text=f"👤 {self.usuario}", font=("Helvetica", 10), foreground="#88C0D0", background="#2E3440").pack(side="left", padx=(0, 15))
+        
+        tk.Button(
+            user_frame, text="Salir ➔", font=("Helvetica", 9, "bold"), bg="#BF616A", fg="white", bd=0, padx=10, pady=2, cursor="hand2",
             command=self.on_logout
-        )
-        btn_logout.pack(side="left")
+        ).pack(side="left")
