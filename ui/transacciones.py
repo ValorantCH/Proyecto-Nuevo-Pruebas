@@ -1,285 +1,285 @@
 import tkinter as tk
-from tkinter import ttk
-from datetime import datetime
-from tkinter import messagebox
-from db.db import obtener_datos, ejecutar_query
+from tkinter import ttk, messagebox
+import sqlite3
+from datetime import datetime, timedelta
+from tkcalendar import DateEntry  # <--- Requisito cumplido
 from ui.styles import AppTheme
 
 class PantallaTransacciones(ttk.Frame):
-    COLUMNAS = {
-        'Principal': [
-            ('id_transaccion', 'ID', 60),
-            ('fecha', 'Fecha', 150),
-            ('tipo', 'Tipo', 100),
-            ('cliente', 'Cliente', 200),
-            ('medio_pago', 'Medio Pago', 150),
-            ('subtotal', 'Subtotal', 100),
-            ('impuestos', 'Impuestos', 100),
-            ('total', 'Total', 120),
-            ('estado', 'Estado', 100)
-        ]
-    }
-
     def __init__(self, parent):
         super().__init__(parent)
         self.theme = AppTheme()
-        self.datos = []
-        self.filtros = {
-            'tipo': 'Todos',
-            'estado': 'Todos',
-            'fecha_inicio': '',
-            'fecha_fin': ''
-        }
+        self.db_path = "data/ventas.db"
         
-        self._inicializar_ui()
-        self._cargar_datos()
+        self.setup_ui()
+        self.cargar_transacciones()
 
-    def _inicializar_ui(self):
-        self._crear_controles_filtro()
-        self._configurar_tabla()
-        self._crear_botones_accion()
+    def setup_ui(self):
+        # ==========================================
+        # 1. PANEL SUPERIOR (Título y Filtros)
+        # ==========================================
+        top_frame = tk.Frame(self, bg="#ECEFF4", pady=20, padx=20)
+        top_frame.pack(fill="x")
 
-    def _crear_controles_filtro(self):
-        controles_frame = ttk.Frame(self)
-        controles_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Título con Icono
+        tk.Label(
+            top_frame, 
+            text="📄 Historial de Transacciones", 
+            font=("Helvetica", 20, "bold"),
+            bg="#ECEFF4", fg="#2E3440"
+        ).pack(side="left")
 
-        # Filtro por tipo
-        ttk.Label(controles_frame, text="Tipo:").grid(row=0, column=0, sticky=tk.W)
-        self.combo_tipo = ttk.Combobox(
-            controles_frame,
-            values=["Todos", "venta", "compra", "devolucion"],
-            state="readonly"
-        )
-        self.combo_tipo.set("Todos")
-        self.combo_tipo.grid(row=0, column=1, padx=5, sticky=tk.W)
-        self.combo_tipo.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtros())
+        # Contenedor de Filtros (Alineado a la derecha)
+        filter_container = tk.Frame(top_frame, bg="#ECEFF4")
+        filter_container.pack(side="right")
 
-        # Filtro por estado
-        ttk.Label(controles_frame, text="Estado:").grid(row=0, column=2, padx=(10,0), sticky=tk.W)
-        self.combo_estado = ttk.Combobox(
-            controles_frame,
-            values=["Todos", "completada", "cancelada", "pendiente"],
-            state="readonly"
-        )
-        self.combo_estado.set("Todos")
-        self.combo_estado.grid(row=0, column=3, padx=5, sticky=tk.W)
-        self.combo_estado.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtros())
-
-        # Filtro por fechas
-        ttk.Label(controles_frame, text="Desde:").grid(row=1, column=0, pady=(10,0), sticky=tk.W)
-        self.entrada_fecha_inicio = ttk.Entry(controles_frame)
-        self.entrada_fecha_inicio.grid(row=1, column=1, pady=(10,0), padx=5, sticky=tk.W)
-        self.entrada_fecha_inicio.bind("<FocusOut>", lambda e: self._aplicar_filtros())
-
-        ttk.Label(controles_frame, text="Hasta:").grid(row=1, column=2, pady=(10,0), padx=(10,0), sticky=tk.W)
-        self.entrada_fecha_fin = ttk.Entry(controles_frame)
-        self.entrada_fecha_fin.grid(row=1, column=3, pady=(10,0), padx=5, sticky=tk.W)
-        self.entrada_fecha_fin.bind("<FocusOut>", lambda e: self._aplicar_filtros())
-
-    def _configurar_tabla(self):
-        frame = ttk.Frame(self)
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
-        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL)
-
-        self.tabla = ttk.Treeview(
-            frame,
-            columns=[col[0] for col in self.COLUMNAS['Principal']],
-            show="headings",
-            yscrollcommand=scrollbar.set,
-            selectmode="browse"
-        )
-
-        for col in self.COLUMNAS['Principal']:
-            self.tabla.heading(col[0], text=col[1], command=lambda c=col[0]: self._ordenar_por_columna(c))
-            self.tabla.column(col[0], width=col[2], anchor=tk.CENTER)
-
-        scrollbar.config(command=self.tabla.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tabla.pack(fill=tk.BOTH, expand=True)
+        # --- Filtro: Fechas (Calendarios) ---
+        # Fecha Inicio
+        tk.Label(filter_container, text="Desde:", bg="#ECEFF4", font=("Arial", 10, "bold")).pack(side="left", padx=5)
         
-        # Configurar colores para diferentes estados
-        self.tabla.tag_configure('cancelada', foreground='#bf616a')  # Rojo
-        self.tabla.tag_configure('pendiente', foreground='#ebcb8b')  # Amarillo
+        inicio_mes = datetime.now() - timedelta(days=30)
+        self.cal_inicio = DateEntry(
+            filter_container,
+            width=12,
+            background='#5E81AC', # Color Azul Nórdico
+            foreground='white',
+            borderwidth=2,
+            date_pattern='y-mm-dd', # Formato SQL (2023-12-31)
+            font=("Arial", 10),
+            headersbackground='#4C566A',
+            headersforeground='white'
+        )
+        self.cal_inicio.set_date(inicio_mes)
+        self.cal_inicio.pack(side="left", padx=5)
 
-    def _crear_botones_accion(self):
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Fecha Fin
+        tk.Label(filter_container, text="Hasta:", bg="#ECEFF4", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+        
+        self.cal_fin = DateEntry(
+            filter_container,
+            width=12,
+            background='#5E81AC',
+            foreground='white',
+            borderwidth=2,
+            date_pattern='y-mm-dd',
+            font=("Arial", 10),
+            headersbackground='#4C566A',
+            headersforeground='white'
+        )
+        self.cal_fin.set_date(datetime.now())
+        self.cal_fin.pack(side="left", padx=5)
+
+        # --- Filtro: Buscador ---
+        tk.Label(filter_container, text="Cliente:", bg="#ECEFF4", font=("Arial", 10)).pack(side="left", padx=(15, 5))
+        
+        self.entry_buscar = ttk.Entry(filter_container, width=20, font=("Arial", 10))
+        self.entry_buscar.pack(side="left", padx=5)
+        
+        # Permitir buscar con Enter
+        self.entry_buscar.bind('<Return>', lambda e: self.cargar_transacciones())
+
+        # Botón Buscar
+        ttk.Button(
+            filter_container, 
+            text="🔍 Buscar", 
+            command=self.cargar_transacciones
+        ).pack(side="left", padx=10)
+
+        # ==========================================
+        # 2. PANEL CENTRAL (Tabla)
+        # ==========================================
+        table_frame = tk.Frame(self, bg="#ECEFF4", padx=20, pady=10)
+        table_frame.pack(fill="both", expand=True)
+
+        columns = ("ID", "Fecha", "Cliente", "Tipo", "Total", "Estado")
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(table_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        # Treeview
+        self.tree = ttk.Treeview(
+            table_frame, 
+            columns=columns, 
+            show="headings", 
+            selectmode="browse",
+            yscrollcommand=scrollbar.set
+        )
+        
+        scrollbar.config(command=self.tree.yview)
+
+        # Configurar Cabeceras
+        headers = [
+            ("ID", 60, "center"),
+            ("Fecha", 150, "center"),
+            ("Cliente", 250, "w"),
+            ("Tipo", 100, "center"),
+            ("Total", 100, "e"),
+            ("Estado", 100, "center")
+        ]
+
+        for col, width, anchor in headers:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=width, anchor=anchor)
+
+        self.tree.pack(side="left", fill="both", expand=True)
+        
+        # Doble click para detalles
+        self.tree.bind("<Double-1>", self.ver_detalles)
+
+        # ==========================================
+        # 3. PANEL INFERIOR (Botones de Acción)
+        # ==========================================
+        actions_frame = tk.Frame(self, bg="#ECEFF4", pady=15, padx=20)
+        actions_frame.pack(fill="x")
 
         ttk.Button(
-            btn_frame,
-            text="Ver Detalle",
-            style="Primary.TButton",
-            command=self._ver_detalle
-        ).pack(side=tk.LEFT, padx=5)
+            actions_frame, 
+            text="📄 Ver Detalle Recibo", 
+            command=self.ver_detalles
+        ).pack(side="right")
 
         ttk.Button(
-            btn_frame,
-            text="Cancelar Transacción",
-            style="Danger.TButton",
-            command=self._cancelar_transaccion,
-            state="disabled"
-        ).pack(side=tk.LEFT, padx=5)
+            actions_frame, 
+            text="🔄 Refrescar", 
+            command=self.cargar_transacciones
+        ).pack(side="right", padx=10)
 
-        ttk.Button(
-            btn_frame,
-            text="Exportar a Excel",
-            style="Secondary.TButton",
-            command=self._exportar_excel
-        ).pack(side=tk.RIGHT, padx=5)
+    # --- LÓGICA DE DATOS ---
 
-    def _cargar_datos(self):
+    def ejecutar_consulta(self, query, params=()):
         try:
-            query = """
-                SELECT 
-                    t.id_transaccion,
-                    strftime('%d/%m/%Y %H:%M', t.fecha) as fecha_formateada,
-                    t.tipo,
-                    CASE 
-                        WHEN t.id_cliente IS NULL THEN 'Sistema'
-                        ELSE c.nombres || ' ' || COALESCE(c.apellido_p, '')
-                    END as cliente,
-                    mp.nombre as medio_pago,
-                    t.subtotal,
-                    t.impuestos,
-                    t.total,
-                    t.estado
-                FROM Transacciones t
-                LEFT JOIN Clientes c ON t.id_cliente = c.id_cliente
-                LEFT JOIN Medios_pago mp ON t.id_medio_pago = mp.id_medio_pago
-                {where}
-                ORDER BY t.fecha DESC
-            """.format(where=self._construir_where())
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            messagebox.showerror("Error BD", str(e))
+            return []
+
+    def cargar_transacciones(self):
+        # Limpiar tabla actual
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # Obtener datos de los filtros
+        fecha_ini = self.cal_inicio.get()
+        fecha_fin = self.cal_fin.get()
+        busqueda = f"%{self.entry_buscar.get()}%"
+
+        query = """
+            SELECT 
+                t.id_transaccion, 
+                t.fecha,
+                CASE 
+                    WHEN t.id_cliente IS NOT NULL THEN c.nombres || ' ' || IFNULL(c.apellido_p, '') 
+                    ELSE 'Público General' 
+                END as ClienteNombre,
+                t.tipo,
+                t.total,
+                t.estado
+            FROM Transacciones t
+            LEFT JOIN Clientes c ON t.id_cliente = c.id_cliente
+            WHERE date(t.fecha) BETWEEN ? AND ?
+            AND (ClienteNombre LIKE ? OR t.id_transaccion LIKE ?)
+            ORDER BY t.fecha DESC
+        """
+
+        # Buscamos por nombre O por ID de transacción
+        datos = self.ejecutar_consulta(query, (fecha_ini, fecha_fin, busqueda, busqueda))
+
+        for fila in datos:
+            # Formatear el total con signo de moneda
+            fila_lista = list(fila)
+            total_val = fila_lista[4]
+            fila_lista[4] = f"${total_val:,.2f}"
             
-            parametros = []
-            if self.filtros['tipo'] != 'Todos':
-                parametros.append(self.filtros['tipo'])
-            if self.filtros['estado'] != 'Todos':
-                parametros.append(self.filtros['estado'])
-            if self.filtros['fecha_inicio']:
-                parametros.append(self.filtros['fecha_inicio'])
-            if self.filtros['fecha_fin']:
-                parametros.append(self.filtros['fecha_fin'])
-                
-            self.datos = obtener_datos(query, parametros)
-            self._actualizar_tabla()
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Error cargando datos: {str(e)}")
+            # Insertar en tabla
+            self.tree.insert("", "end", values=fila_lista)
 
-    def _construir_where(self):
-        condiciones = []
-        if self.filtros['tipo'] != 'Todos':
-            condiciones.append("t.tipo = ?")
-        if self.filtros['estado'] != 'Todos':
-            condiciones.append("t.estado = ?")
-        if self.filtros['fecha_inicio']:
-            condiciones.append("t.fecha >= ?")
-        if self.filtros['fecha_fin']:
-            condiciones.append("t.fecha <= ?")
-            
-        return "WHERE " + " AND ".join(condiciones) if condiciones else ""
-
-    def _actualizar_tabla(self):
-        self.tabla.delete(*self.tabla.get_children())
-        for transaccion in self.datos:
-            self.tabla.insert("", tk.END, values=(
-                transaccion[0],  # ID
-                transaccion[1],  # Fecha
-                transaccion[2].capitalize(),  # Tipo
-                transaccion[3],  # Cliente
-                transaccion[4],  # Medio pago
-                f"${transaccion[5]:.2f}",  # Subtotal
-                f"${transaccion[6]:.2f}",  # Impuestos
-                f"${transaccion[7]:.2f}",  # Total
-                transaccion[8].capitalize()  # Estado
-            ), tags=(transaccion[8],))  # Tag para colorear por estado
-
-    def _aplicar_filtros(self, event=None):
-        self.filtros.update({
-            'tipo': self.combo_tipo.get(),
-            'estado': self.combo_estado.get(),
-            'fecha_inicio': self.entrada_fecha_inicio.get(),
-            'fecha_fin': self.entrada_fecha_fin.get()
-        })
-        self._cargar_datos()
-
-    def _ordenar_por_columna(self, columna):
-        # Implementar lógica de ordenamiento similar a tus otras pantallas
-        pass
-
-    def _ver_detalle(self):
-        seleccion = self.tabla.focus()
+    def ver_detalles(self, event=None):
+        seleccion = self.tree.selection()
         if not seleccion:
-            messagebox.showwarning("Selección requerida", "Seleccione una transacción primero")
+            messagebox.showwarning("Atención", "Seleccione una transacción para ver los detalles.")
             return
-            
-        transaccion_id = self.tabla.item(seleccion, "values")[0]
-        self._mostrar_dialogo_detalle(transaccion_id)
 
-    def _mostrar_dialogo_detalle(self, transaccion_id):
-        # Crear diálogo para mostrar detalles de la transacción
-        dialogo = tk.Toplevel(self)
-        dialogo.title(f"Detalle Transacción #{transaccion_id}")
-        dialogo.geometry("800x600")
+        item = self.tree.item(seleccion[0])
+        datos = item['values']
         
-        # Obtener detalles de la transacción
-        detalles = obtener_datos("""
-            SELECT p.nombre, dt.cantidad, dt.precio_unitario, 
-                   dt.descuento, dt.iva_aplicado,
-                   (dt.precio_unitario * dt.cantidad - dt.descuento) as subtotal
+        id_transaccion = datos[0]
+        cliente_nombre = datos[2]
+        fecha = datos[1]
+        total_global = datos[4]
+
+        self.mostrar_popup_detalle(id_transaccion, cliente_nombre, fecha, total_global)
+
+    def mostrar_popup_detalle(self, id_tx, cliente, fecha, total):
+        # Crear ventana flotante con estilo
+        popup = tk.Toplevel(self)
+        popup.title(f"Ticket de Venta #{id_tx}")
+        popup.geometry("500x600")
+        popup.configure(bg="white")
+        popup.resizable(False, True)
+
+        # --- Encabezado del Ticket ---
+        header = tk.Frame(popup, bg="#ECEFF4", pady=20)
+        header.pack(fill="x")
+
+        tk.Label(header, text="🛒 SISTEMA DE VENTAS", font=("Helvetica", 10, "bold"), bg="#ECEFF4", fg="#4C566A").pack()
+        tk.Label(header, text=f"Recibo de Venta #{id_tx}", font=("Helvetica", 16, "bold"), bg="#ECEFF4", fg="#2E3440").pack(pady=(5,0))
+        
+        info_frame = tk.Frame(popup, bg="white", pady=15, padx=20)
+        info_frame.pack(fill="x")
+        
+        tk.Label(info_frame, text=f"Fecha de Emisión: {fecha}", bg="white", font=("Arial", 10)).pack(anchor="w")
+        tk.Label(info_frame, text=f"Cliente: {cliente}", bg="white", font=("Arial", 10, "bold")).pack(anchor="w")
+        
+        ttk.Separator(popup, orient='horizontal').pack(fill='x', padx=20)
+
+        # --- Lista de Productos ---
+        tree_frame = tk.Frame(popup, bg="white", padx=20, pady=10)
+        tree_frame.pack(fill="both", expand=True)
+
+        cols = ("Prod", "Cant", "Total")
+        tree_det = ttk.Treeview(tree_frame, columns=cols, show="headings", height=10)
+        
+        tree_det.heading("Prod", text="Producto")
+        tree_det.heading("Cant", text="Cant.")
+        tree_det.heading("Total", text="Importe")
+        
+        tree_det.column("Prod", width=240)
+        tree_det.column("Cant", width=60, anchor="center")
+        tree_det.column("Total", width=80, anchor="e")
+        
+        tree_det.pack(fill="both", expand=True)
+
+        # Cargar detalle desde BD
+        query = """
+            SELECT p.nombre, dt.cantidad, (dt.cantidad * dt.precio_unitario)
             FROM Detalle_transaccion dt
             JOIN Productos p ON dt.id_producto = p.id_producto
             WHERE dt.id_transaccion = ?
-            ORDER BY dt.id_detalle
-        """, (transaccion_id,))
-        
-        # Crear tabla de detalles
-        columns = ("producto", "cantidad", "precio", "descuento", "iva", "subtotal")
-        tabla_detalle = ttk.Treeview(
-            dialogo,
-            columns=columns,
-            show="headings"
-        )
-        
-        # Configurar columnas
-        tabla_detalle.heading("producto", text="Producto")
-        tabla_detalle.heading("cantidad", text="Cantidad")
-        tabla_detalle.heading("precio", text="Precio Unit.")
-        tabla_detalle.heading("descuento", text="Descuento")
-        tabla_detalle.heading("iva", text="IVA")
-        tabla_detalle.heading("subtotal", text="Subtotal")
-        
-        tabla_detalle.column("producto", width=250)
-        tabla_detalle.column("cantidad", width=80, anchor=tk.CENTER)
-        tabla_detalle.column("precio", width=100, anchor=tk.E)
-        tabla_detalle.column("descuento", width=100, anchor=tk.E)
-        tabla_detalle.column("iva", width=100, anchor=tk.E)
-        tabla_detalle.column("subtotal", width=120, anchor=tk.E)
-        
-        # Agregar datos
-        for detalle in detalles:
-            tabla_detalle.insert("", tk.END, values=(
-                detalle[0],  # Producto
-                detalle[1],  # Cantidad
-                f"${detalle[2]:.2f}",  # Precio
-                f"${detalle[3]:.2f}",  # Descuento
-                f"${detalle[4]:.2f}",  # IVA
-                f"${detalle[5]:.2f}"   # Subtotal
+        """
+        detalles = self.ejecutar_consulta(query, (id_tx,))
+
+        for det in detalles:
+            tree_det.insert("", "end", values=(
+                det[0],
+                det[1],
+                f"${det[2]:,.2f}"
             ))
+
+        # --- Total y Cierre ---
+        footer = tk.Frame(popup, bg="#ECEFF4", pady=20, padx=30)
+        footer.pack(fill="x", side="bottom")
+
+        # Total Grande
+        total_frame = tk.Frame(footer, bg="#ECEFF4")
+        total_frame.pack(fill="x")
         
-        tabla_detalle.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        tk.Label(total_frame, text="TOTAL PAGADO", font=("Arial", 10), bg="#ECEFF4", fg="#4C566A").pack(side="left")
+        tk.Label(total_frame, text=total, font=("Helvetica", 22, "bold"), bg="#ECEFF4", fg="#BF616A").pack(side="right") # Color Rojo Nórdico
 
-    def _cancelar_transaccion(self):
-        # Implementar lógica para cancelar transacciones
-        pass
-
-    def _exportar_excel(self):
-        # Implementar exportación a Excel
-        pass
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = PantallaTransacciones(root)
-    app.pack(fill=tk.BOTH, expand=True)
-    root.mainloop()
+        ttk.Separator(footer, orient='horizontal').pack(fill='x', pady=10)
+        
+        ttk.Button(footer, text="Cerrar Recibo", command=popup.destroy).pack()
