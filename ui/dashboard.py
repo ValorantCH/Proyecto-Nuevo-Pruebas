@@ -1,11 +1,27 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import sqlite3
 from datetime import datetime, timedelta
+import os
+
+# --- GRÁFICOS ---
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from tkcalendar import DateEntry  # <--- IMPORTANTE: Librería del calendario
+
+# --- CALENDARIO ---
+from tkcalendar import DateEntry
+
+# --- REPORTE PDF ---
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+
+# --- REPORTE EXCEL ---
+import pandas as pd
+
 from ui.styles import AppTheme
 
 class PantallaDashboard(ttk.Frame):
@@ -13,6 +29,10 @@ class PantallaDashboard(ttk.Frame):
         super().__init__(parent)
         self.theme = AppTheme()
         self.db_path = "data/ventas.db"
+        
+        # Almacenes de memoria para el reporte
+        self.figuras = {}      # Guardará los objetos Figure de matplotlib
+        self.data_cache = {}   # Guardará los resultados de las queries SQL
         
         # Configurar estilo de gráficos
         plt.style.use('ggplot')
@@ -23,7 +43,7 @@ class PantallaDashboard(ttk.Frame):
         self.setup_ui()
         
     def setup_ui(self):
-        # --- Barra Superior: Título y Filtros ---
+        # --- Barra Superior ---
         top_frame = tk.Frame(self, bg="#ECEFF4")
         top_frame.pack(fill="x", padx=20, pady=10)
 
@@ -34,81 +54,53 @@ class PantallaDashboard(ttk.Frame):
             bg="#ECEFF4", fg="#2E3440"
         ).pack(side="left")
 
-        # --- Filtros con Calendario ---
+        # --- Filtros y Botones ---
         filter_frame = tk.Frame(top_frame, bg="#ECEFF4")
         filter_frame.pack(side="right")
 
-        # Fechas por defecto
         hoy = datetime.now()
         inicio_mes = hoy - timedelta(days=30)
 
-        # 1. Selector Fecha Inicio
+        # Filtros de Fecha
         tk.Label(filter_frame, text="Desde:", bg="#ECEFF4", font=("Arial", 10, "bold")).pack(side="left", padx=5)
-        
-        self.cal_inicio = DateEntry(
-            filter_frame, 
-            width=12, 
-            background='#5E81AC', # Color azul nórdico
-            foreground='white', 
-            borderwidth=2,
-            date_pattern='y-mm-dd', # Formato compatible con SQL (2023-12-31)
-            font=("Arial", 10)
-        )
-        self.cal_inicio.set_date(inicio_mes) # Establecer fecha inicial
+        self.cal_inicio = DateEntry(filter_frame, width=12, background='#5E81AC', foreground='white', borderwidth=2, date_pattern='y-mm-dd')
+        self.cal_inicio.set_date(inicio_mes)
         self.cal_inicio.pack(side="left", padx=5)
 
-        # 2. Selector Fecha Fin
         tk.Label(filter_frame, text="Hasta:", bg="#ECEFF4", font=("Arial", 10, "bold")).pack(side="left", padx=5)
-        
-        self.cal_fin = DateEntry(
-            filter_frame, 
-            width=12, 
-            background='#5E81AC',
-            foreground='white', 
-            borderwidth=2,
-            date_pattern='y-mm-dd',
-            font=("Arial", 10)
-        )
-        self.cal_fin.set_date(hoy) # Establecer fecha hoy
+        self.cal_fin = DateEntry(filter_frame, width=12, background='#5E81AC', foreground='white', borderwidth=2, date_pattern='y-mm-dd')
+        self.cal_fin.set_date(hoy)
         self.cal_fin.pack(side="left", padx=5)
 
-        # Botón Generar
-        ttk.Button(
-            filter_frame, 
-            text="🔄 Actualizar", 
-            command=self.cargar_datos
-        ).pack(side="left", padx=15)
+        # Botón Actualizar
+        ttk.Button(filter_frame, text="🔄 Actualizar", command=self.cargar_datos).pack(side="left", padx=10)
 
-        # --- Área de Resumen (KPI Cards) ---
+        # Botón Exportar (NUEVO)
+        btn_export = tk.Button(
+            filter_frame, 
+            text="📂 Exportar Reporte", 
+            font=("Arial", 9, "bold"),
+            bg="#A3BE8C", fg="white", 
+            activebackground="#8FBCBB",
+            cursor="hand2",
+            command=self.mostrar_opciones_exportar
+        )
+        btn_export.pack(side="left", padx=10)
+
+        # --- KPIs ---
         self.kpi_frame = tk.Frame(self, bg="#ECEFF4")
         self.kpi_frame.pack(fill="x", padx=20, pady=5)
         
-        # --- Área de Gráficos (Grid) ---
+        # --- Gráficos ---
         self.charts_frame = tk.Frame(self, bg="#ECEFF4")
         self.charts_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        # Configurar grid 2x2 para gráficos
         self.charts_frame.columnconfigure(0, weight=1)
         self.charts_frame.columnconfigure(1, weight=1)
         self.charts_frame.rowconfigure(0, weight=1)
         self.charts_frame.rowconfigure(1, weight=1)
 
-        # Cargar datos iniciales
         self.cargar_datos()
-
-    def crear_kpi_card(self, parent, titulo, valor, icono, color_bg):
-        frame = tk.Frame(parent, bg=color_bg, padx=15, pady=10)
-        frame.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Icono
-        tk.Label(frame, text=icono, font=("Segoe UI Emoji", 24), bg=color_bg, fg="white").pack(side="left")
-        
-        # Texto
-        right = tk.Frame(frame, bg=color_bg)
-        right.pack(side="right", fill="both")
-        
-        tk.Label(right, text=titulo, font=("Helvetica", 10), bg=color_bg, fg="white").pack(anchor="e")
-        tk.Label(right, text=valor, font=("Helvetica", 16, "bold"), bg=color_bg, fg="white").pack(anchor="e")
 
     def ejecutar_consulta(self, query, params=()):
         with sqlite3.connect(self.db_path) as conn:
@@ -117,59 +109,55 @@ class PantallaDashboard(ttk.Frame):
             return cursor.fetchall()
 
     def cargar_datos(self):
-        # Obtener fechas directamente del widget DateEntry
-        # Gracias a date_pattern='y-mm-dd', .get() ya devuelve el string correcto para SQL
         fecha_ini = self.cal_inicio.get()
         fecha_fin = self.cal_fin.get()
 
-        # Limpiar widgets anteriores
+        # Limpiar UI anterior
         for widget in self.kpi_frame.winfo_children(): widget.destroy()
         for widget in self.charts_frame.winfo_children(): widget.destroy()
+        self.figuras = {} # Limpiar caché de figuras
 
         try:
-            # --- KPIS ---
-            # Total Ventas
+            # --- 1. KPIs ---
             sql_total = "SELECT SUM(total) FROM Transacciones WHERE tipo='venta' AND date(fecha) BETWEEN ? AND ?"
             res_total = self.ejecutar_consulta(sql_total, (fecha_ini, fecha_fin))[0][0] or 0
             
-            # Cantidad Ventas
             sql_count = "SELECT COUNT(*) FROM Transacciones WHERE tipo='venta' AND date(fecha) BETWEEN ? AND ?"
             res_count = self.ejecutar_consulta(sql_count, (fecha_ini, fecha_fin))[0][0] or 0
+            
+            # Guardar KPIs en memoria
+            self.data_cache['kpis'] = {"total": res_total, "count": res_count, "desde": fecha_ini, "hasta": fecha_fin}
 
-            self.crear_kpi_card(self.kpi_frame, "Ingresos Totales", f"${res_total:,.2f}", "💰", "#A3BE8C") # Verde
-            self.crear_kpi_card(self.kpi_frame, "Ventas Realizadas", f"{res_count}", "🧾", "#5E81AC") # Azul
-            self.crear_kpi_card(self.kpi_frame, "Periodo", f"Del {fecha_ini}", "📅", "#B48EAD") # Morado
+            self.crear_kpi_card(self.kpi_frame, "Ingresos Totales", f"${res_total:,.2f}", "💰", "#A3BE8C")
+            self.crear_kpi_card(self.kpi_frame, "Ventas Realizadas", f"{res_count}", "🧾", "#5E81AC")
+            self.crear_kpi_card(self.kpi_frame, "Periodo Analizado", f"{fecha_ini} a {fecha_fin}", "📅", "#B48EAD")
 
-            # --- GRAFICOS ---
-
-            # 1. Top 5 Productos (Pie)
+            # --- 2. Top Productos (Pie) ---
             sql_prod = """
                 SELECT p.nombre, SUM(d.cantidad) as total_qty
                 FROM Detalle_transaccion d
                 JOIN Productos p ON d.id_producto = p.id_producto
                 JOIN Transacciones t ON d.id_transaccion = t.id_transaccion
                 WHERE t.tipo='venta' AND date(t.fecha) BETWEEN ? AND ?
-                GROUP BY p.id_producto
-                ORDER BY total_qty DESC
-                LIMIT 5
+                GROUP BY p.id_producto ORDER BY total_qty DESC LIMIT 5
             """
             data_prod = self.ejecutar_consulta(sql_prod, (fecha_ini, fecha_fin))
-            self.generar_grafico_pastel(data_prod, 0, 0, "Top 5 Productos Más Vendidos")
+            self.data_cache['productos'] = data_prod
+            self.generar_grafico_pastel(data_prod, 0, 0, "Top 5 Productos", "chart_prod")
 
-            # 2. Top 5 Clientes (Barras)
+            # --- 3. Top Clientes (Barras) ---
             sql_cli = """
                 SELECT c.nombres || ' ' || IFNULL(c.apellido_p, ''), SUM(t.total)
                 FROM Transacciones t
                 JOIN Clientes c ON t.id_cliente = c.id_cliente
                 WHERE t.tipo='venta' AND date(t.fecha) BETWEEN ? AND ?
-                GROUP BY c.id_cliente
-                ORDER BY SUM(t.total) DESC
-                LIMIT 5
+                GROUP BY c.id_cliente ORDER BY SUM(t.total) DESC LIMIT 5
             """
             data_cli = self.ejecutar_consulta(sql_cli, (fecha_ini, fecha_fin))
-            self.generar_grafico_barras(data_cli, 0, 1, "Top 5 Clientes ($)")
+            self.data_cache['clientes'] = data_cli
+            self.generar_grafico_barras(data_cli, 0, 1, "Top Clientes ($)", "chart_cli")
 
-            # 3. Proveedores (Dona) - Inventario Global
+            # --- 4. Proveedores (Dona) ---
             sql_prov = """
                 SELECT pr.nombre, COUNT(p.id_producto)
                 FROM Productos p
@@ -177,99 +165,236 @@ class PantallaDashboard(ttk.Frame):
                 GROUP BY pr.id_proveedor
             """
             data_prov = self.ejecutar_consulta(sql_prov)
-            self.generar_grafico_dona(data_prov, 1, 0, "Distribución por Proveedor")
-            
-            # 4. Ventas por día (Línea) - Nuevo Gráfico extra
+            self.data_cache['proveedores'] = data_prov
+            self.generar_grafico_dona(data_prov, 1, 0, "Catálogo x Proveedor", "chart_prov")
+
+            # --- 5. Ventas x Día (Línea) ---
             sql_tiempo = """
                 SELECT date(fecha), SUM(total)
                 FROM Transacciones
                 WHERE tipo='venta' AND date(fecha) BETWEEN ? AND ?
-                GROUP BY date(fecha)
-                ORDER BY date(fecha)
+                GROUP BY date(fecha) ORDER BY date(fecha)
             """
             data_tiempo = self.ejecutar_consulta(sql_tiempo, (fecha_ini, fecha_fin))
-            self.generar_grafico_linea(data_tiempo, 1, 1, "Tendencia de Ventas")
+            self.data_cache['tiempo'] = data_tiempo
+            self.generar_grafico_linea(data_tiempo, 1, 1, "Evolución Ventas", "chart_time")
 
         except Exception as e:
-            messagebox.showerror("Error Dashboard", f"No se pudieron cargar los datos: {str(e)}")
+            messagebox.showerror("Error", f"Error al cargar datos: {e}")
 
-    # --- Funciones de Dibujo de Gráficos ---
-
-    def generar_grafico_pastel(self, datos, row, col, titulo):
-        if not datos: return self.mostrar_no_data(row, col, titulo)
-        
-        labels = [str(r[0])[:15] for r in datos] # Recortar nombres largos
-        sizes = [r[1] for r in datos]
-        colors = ['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD']
-
-        fig = Figure(figsize=(5, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=45, colors=colors)
-        ax.set_title(titulo, fontsize=10)
-
-        self.dibujar_canvas(fig, row, col)
-
-    def generar_grafico_barras(self, datos, row, col, titulo):
-        if not datos: return self.mostrar_no_data(row, col, titulo)
-        
-        labels = [str(r[0]) for r in datos]
-        values = [r[1] for r in datos]
-
-        fig = Figure(figsize=(5, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.barh(labels, values, color='#5E81AC')
-        ax.set_title(titulo, fontsize=10)
-        ax.invert_yaxis()
-        
-        # Formato moneda en eje X
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
-        plt.setp(ax.get_xticklabels(), rotation=0, fontsize=8)
-
-        self.dibujar_canvas(fig, row, col)
-
-    def generar_grafico_dona(self, datos, row, col, titulo):
-        if not datos: return self.mostrar_no_data(row, col, titulo)
-        
-        labels = [str(r[0]) for r in datos]
-        sizes = [r[1] for r in datos]
-        colors = ['#8FBCBB', '#88C0D0', '#81A1C1', '#5E81AC']
-
-        fig = Figure(figsize=(5, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.pie(sizes, labels=labels, autopct='%1.0f%%', pctdistance=0.85, colors=colors)
-        # Círculo central
-        ax.add_artist(plt.Circle((0,0),0.70,fc='#ECEFF4'))
-        ax.set_title(titulo, fontsize=10)
-
-        self.dibujar_canvas(fig, row, col)
-
-    def generar_grafico_linea(self, datos, row, col, titulo):
-        # Si hay pocos datos o ninguno, manejarlo
-        if not datos: 
-            return self.mostrar_no_data(row, col, titulo)
-
-        fechas = [r[0][5:] for r in datos] # Solo Mes-Dia para que quepa
-        valores = [r[1] for r in datos]
-
-        fig = Figure(figsize=(5, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.plot(fechas, valores, marker='o', linestyle='-', color='#BF616A', linewidth=2)
-        ax.fill_between(fechas, valores, color='#BF616A', alpha=0.3)
-        ax.set_title(titulo, fontsize=10)
-        
-        # Rotar fechas si son muchas
-        if len(fechas) > 5:
-            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=8)
-
-        self.dibujar_canvas(fig, row, col)
-
-    def mostrar_no_data(self, row, col, titulo):
-        frame = tk.Frame(self.charts_frame, bg="#ECEFF4")
-        frame.grid(row=row, column=col, sticky="nsew", padx=10, pady=10)
-        tk.Label(frame, text=titulo, font=("Arial", 10, "bold"), bg="#ECEFF4").pack(pady=5)
-        tk.Label(frame, text="(Sin datos para este periodo)", font=("Arial", 9, "italic"), bg="#ECEFF4", fg="#999").pack(expand=True)
+    # --- UI Helpers ---
+    def crear_kpi_card(self, parent, titulo, valor, icono, color_bg):
+        frame = tk.Frame(parent, bg=color_bg, padx=15, pady=10)
+        frame.pack(side="left", fill="x", expand=True, padx=5)
+        tk.Label(frame, text=icono, font=("Segoe UI Emoji", 24), bg=color_bg, fg="white").pack(side="left")
+        right = tk.Frame(frame, bg=color_bg)
+        right.pack(side="right", fill="both")
+        tk.Label(right, text=titulo, font=("Helvetica", 10), bg=color_bg, fg="white").pack(anchor="e")
+        tk.Label(right, text=valor, font=("Helvetica", 16, "bold"), bg=color_bg, fg="white").pack(anchor="e")
 
     def dibujar_canvas(self, fig, row, col):
         canvas = FigureCanvasTkAgg(fig, master=self.charts_frame)
         canvas.draw()
         canvas.get_tk_widget().grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+    # --- Generadores de Gráficos (Ahora guardan la figura en self.figuras) ---
+    def generar_grafico_pastel(self, datos, row, col, titulo, key):
+        if not datos: return
+        labels = [str(r[0])[:15] for r in datos]
+        sizes = [r[1] for r in datos]
+        colors = ['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD']
+        
+        fig = Figure(figsize=(5, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=45, colors=colors)
+        ax.set_title(titulo, fontsize=10)
+        
+        self.figuras[key] = fig # Guardar para reporte
+        self.dibujar_canvas(fig, row, col)
+
+    def generar_grafico_barras(self, datos, row, col, titulo, key):
+        if not datos: return
+        labels = [str(r[0]) for r in datos]
+        values = [r[1] for r in datos]
+        fig = Figure(figsize=(5, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.barh(labels, values, color='#5E81AC')
+        ax.set_title(titulo, fontsize=10)
+        ax.invert_yaxis()
+        self.figuras[key] = fig
+        self.dibujar_canvas(fig, row, col)
+
+    def generar_grafico_dona(self, datos, row, col, titulo, key):
+        if not datos: return
+        labels = [str(r[0]) for r in datos]
+        sizes = [r[1] for r in datos]
+        fig = Figure(figsize=(5, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.pie(sizes, labels=labels, autopct='%1.0f%%', pctdistance=0.85)
+        ax.add_artist(plt.Circle((0,0),0.70,fc='#ECEFF4'))
+        ax.set_title(titulo, fontsize=10)
+        self.figuras[key] = fig
+        self.dibujar_canvas(fig, row, col)
+
+    def generar_grafico_linea(self, datos, row, col, titulo, key):
+        if not datos: return
+        fechas = [r[0][5:] for r in datos]
+        valores = [r[1] for r in datos]
+        fig = Figure(figsize=(5, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.plot(fechas, valores, marker='o', color='#BF616A')
+        ax.set_title(titulo, fontsize=10)
+        if len(fechas) > 5: plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=8)
+        self.figuras[key] = fig
+        self.dibujar_canvas(fig, row, col)
+
+    # =======================================================
+    #              MÓDULO DE EXPORTACIÓN
+    # =======================================================
+    
+    def mostrar_opciones_exportar(self):
+        """Popup para elegir PDF o Excel"""
+        popup = tk.Toplevel(self)
+        popup.title("Exportar Reporte")
+        popup.geometry("300x150")
+        popup.resizable(False, False)
+        
+        # Centrar
+        x = self.winfo_rootx() + 50
+        y = self.winfo_rooty() + 50
+        popup.geometry(f"+{x}+{y}")
+        
+        tk.Label(popup, text="Seleccione el formato:", font=("Arial", 11, "bold")).pack(pady=15)
+        
+        frame_btns = tk.Frame(popup)
+        frame_btns.pack(pady=10)
+        
+        tk.Button(
+            frame_btns, text="📄 PDF (Detallado)", 
+            bg="#BF616A", fg="white", font=("Arial", 10),
+            command=lambda: [popup.destroy(), self.generar_reporte_pdf()]
+        ).pack(side="left", padx=10)
+        
+        tk.Button(
+            frame_btns, text="📊 Excel (Datos)", 
+            bg="#A3BE8C", fg="white", font=("Arial", 10),
+            command=lambda: [popup.destroy(), self.generar_reporte_excel()]
+        ).pack(side="left", padx=10)
+
+    def generar_reporte_pdf(self):
+        """Genera un PDF A4 con KPIs, Gráficos y Tablas"""
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF Document", "*.pdf")],
+                title="Guardar Reporte",
+                initialfile=f"Reporte_Ventas_{datetime.now().strftime('%Y%m%d')}.pdf"
+            )
+            if not filename: return
+
+            # Guardar imágenes de gráficos temporalmente
+            temp_images = []
+            for key, fig in self.figuras.items():
+                temp_path = f"temp_{key}.png"
+                fig.savefig(temp_path, format='png', bbox_inches='tight')
+                temp_images.append(temp_path)
+
+            # --- Crear PDF ---
+            doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Encabezado
+            elements.append(Paragraph("<b>REPORTE GERENCIAL DE VENTAS</b>", styles["Title"]))
+            elements.append(Spacer(1, 5*mm))
+            
+            kpi = self.data_cache.get('kpis', {})
+            txt_resumen = f"""
+            <b>Periodo:</b> {kpi.get('desde')} al {kpi.get('hasta')}<br/>
+            <b>Total Ingresos:</b> ${kpi.get('total', 0):,.2f}<br/>
+            <b>Total Operaciones:</b> {kpi.get('count', 0)}
+            """
+            elements.append(Paragraph(txt_resumen, styles["Normal"]))
+            elements.append(Spacer(1, 10*mm))
+
+            # --- SECCIÓN 1: PRODUCTOS ---
+            elements.append(Paragraph("<b>1. Desempeño de Productos</b>", styles["Heading2"]))
+            # Imagen
+            if 'chart_prod' in self.figuras:
+                elements.append(RLImage("temp_chart_prod.png", width=120*mm, height=80*mm))
+            # Tabla Detallada
+            data_prod = [["Producto", "Cantidad Vendida"]] + [[str(p[0]), str(p[1])] for p in self.data_cache.get('productos', [])]
+            t_prod = Table(data_prod, colWidths=[100*mm, 40*mm])
+            t_prod.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#5E81AC")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            elements.append(Spacer(1, 5*mm))
+            elements.append(t_prod)
+            elements.append(Spacer(1, 10*mm))
+
+            # --- SECCIÓN 2: CLIENTES ---
+            elements.append(Paragraph("<b>2. Clientes Estrella</b>", styles["Heading2"]))
+            if 'chart_cli' in self.figuras:
+                elements.append(RLImage("temp_chart_cli.png", width=120*mm, height=80*mm))
+            
+            data_cli = [["Cliente", "Total Comprado ($)"]] + [[str(c[0]), f"${c[1]:,.2f}"] for c in self.data_cache.get('clientes', [])]
+            t_cli = Table(data_cli, colWidths=[100*mm, 40*mm])
+            t_cli.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#A3BE8C")),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            elements.append(Spacer(1, 5*mm))
+            elements.append(t_cli)
+
+            doc.build(elements)
+            
+            # Limpiar temporales
+            for img in temp_images:
+                if os.path.exists(img): os.remove(img)
+
+            messagebox.showinfo("Éxito", "Reporte PDF generado correctamente.")
+            os.startfile(filename)
+
+        except Exception as e:
+            messagebox.showerror("Error PDF", str(e))
+
+    def generar_reporte_excel(self):
+        """Genera un Excel con múltiples hojas usando Pandas"""
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel File", "*.xlsx")],
+                title="Guardar Excel",
+                initialfile=f"Data_Ventas_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            )
+            if not filename: return
+
+            with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                # Hoja 1: Resumen
+                kpi = self.data_cache.get('kpis', {})
+                df_kpi = pd.DataFrame([kpi])
+                df_kpi.to_excel(writer, sheet_name="Resumen", index=False)
+
+                # Hoja 2: Productos
+                data_prod = self.data_cache.get('productos', [])
+                df_prod = pd.DataFrame(data_prod, columns=["Producto", "Cantidad"])
+                df_prod.to_excel(writer, sheet_name="Top Productos", index=False)
+
+                # Hoja 3: Clientes
+                data_cli = self.data_cache.get('clientes', [])
+                df_cli = pd.DataFrame(data_cli, columns=["Cliente", "Total Comprado"])
+                df_cli.to_excel(writer, sheet_name="Top Clientes", index=False)
+
+                # Hoja 4: Tendencia
+                data_time = self.data_cache.get('tiempo', [])
+                df_time = pd.DataFrame(data_time, columns=["Fecha", "Venta Total"])
+                df_time.to_excel(writer, sheet_name="Ventas Diarias", index=False)
+
+            messagebox.showinfo("Éxito", "Reporte Excel generado correctamente.")
+            os.startfile(filename)
+
+        except Exception as e:
+            messagebox.showerror("Error Excel", f"No se pudo generar el Excel.\nAsegúrese de tener 'pandas' y 'openpyxl' instalados.\nError: {e}")
